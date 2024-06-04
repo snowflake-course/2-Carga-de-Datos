@@ -1,0 +1,7 @@
+create table ventas (
+    ID_pedido int
+    ,Unidades int
+    ,Precio_unitario float
+    ,Total_venta float
+    ,Fecha date
+    )

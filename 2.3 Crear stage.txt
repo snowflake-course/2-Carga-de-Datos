@@ -1,0 +1,177 @@
+// CÓMO CREAR UN STAGE
+// Crear Database para gestión de stages, fileformats, etc.
+
+CREATE OR REPLACE DATABASE MANAGE_DB;
+
+CREATE OR REPLACE SCHEMA external_stages;
+
+
+// Crear external stage
+
+CREATE OR REPLACE STAGE MANAGE_DB.external_stages.aws_stage
+    url='s3://bucketsnowflakes3'
+    credentials=(aws_key_id='ABCD_DUMMY_ID' aws_secret_key='1234abcd_key');
+
+
+// Descripción del external stage
+
+DESC STAGE MANAGE_DB.external_stages.aws_stage; 
+    
+    
+// Modificar external stage   
+
+ALTER STAGE aws_stage
+    SET credentials=(aws_key_id='XYZ_DUMMY_ID' aws_secret_key='987xyz');
+    
+    
+// Eliminar credenciales puesto que es un fichero público    
+
+CREATE OR REPLACE STAGE MANAGE_DB.external_stages.aws_stage
+    url='s3://bucketsnowflakes3';
+
+// Listar los ficheros en el stage
+
+LIST @aws_stage;
+
+
+//CARGA DE DATOS UTILIZANDO EL COMANDO COPY
+
+// Crear tabla de datos ORDERS
+
+CREATE OR REPLACE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS (
+    ORDER_ID VARCHAR(30),
+    AMOUNT INT,
+    PROFIT INT,
+    QUANTITY INT,
+    CATEGORY VARCHAR(30),
+    SUBCATEGORY VARCHAR(30));
+
+// Uso de COPY con la sentencia de contexto completo
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS
+    FROM @MANAGE_DB.external_stages.aws_stage
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files = ('OrderDetails.csv');
+
+
+// Uso de COPY utilizando un patrón para el nombre del fichero (carga = 0 puesto que detecta que ya se ha cargado el fichero coincidente previamente)
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS
+    FROM @MANAGE_DB.external_stages.aws_stage
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    pattern='.*Order.*';
+
+// TRANSFORMACIÓN DE DATOS
+// Ejemplo 1 seleccionar columnas - Tabla
+
+CREATE OR REPLACE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX (
+    ORDER_ID VARCHAR(30),
+    AMOUNT INT
+    )
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+    FROM (select s.$1, s.$2 from @MANAGE_DB.external_stages.aws_stage s)
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files=('OrderDetails.csv');
+
+
+SELECT * FROM PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX;
+   
+// Ejemplo 2 Uso de función SQL para columna nueva calculada - Tabla    
+
+CREATE OR REPLACE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX (
+    ORDER_ID VARCHAR(30),
+    AMOUNT INT,
+    PROFIT INT,
+    PROFITABLE_FLAG VARCHAR(30)
+  
+    )
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+    FROM (select 
+            s.$1,
+            s.$2, 
+            s.$3,
+            CASE WHEN CAST(s.$3 as int) < 0 THEN 'not profitable' ELSE 'profitable' END 
+          from @MANAGE_DB.external_stages.aws_stage s)
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files=('OrderDetails.csv');
+
+
+SELECT * FROM PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+
+
+// Ejemplo 3 Seleccionar Substring de una columna - Tabla
+
+CREATE OR REPLACE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX (
+    ORDER_ID VARCHAR(30),
+    AMOUNT INT,
+    PROFIT INT,
+    CATEGORY_SUBSTRING VARCHAR(5)
+  
+    )
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+    FROM (select 
+            s.$1,
+            s.$2, 
+            s.$3,
+            substring(s.$5,1,5) 
+          from @MANAGE_DB.external_stages.aws_stage s)
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files=('OrderDetails.csv');
+
+
+SELECT * FROM PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+
+//Ejemplo 4 Utilizar un conjunto de columnas y el resto vacías
+
+CREATE OR REPLACE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX (
+    ORDER_ID VARCHAR(30),
+    AMOUNT INT,
+    PROFIT INT,
+    PROFITABLE_FLAG VARCHAR(30)
+  
+    )
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX (ORDER_ID,PROFIT)
+    FROM (select 
+            s.$1,
+            s.$3
+          from @MANAGE_DB.external_stages.aws_stage s)
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files=('OrderDetails.csv');
+
+SELECT * FROM PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX;
+
+
+
+//Ejemplo 5 Añadir columna con autoincremento de ID
+
+CREATE OR REPLACE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX (
+    ORDER_ID number autoincrement start 1 increment 1,
+    AMOUNT INT,
+    PROFIT INT,
+    PROFITABLE_FLAG VARCHAR(30)
+  
+    )
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX (PROFIT,AMOUNT)
+    FROM (select 
+            s.$2,
+            s.$3
+          from @MANAGE_DB.external_stages.aws_stage s)
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files=('OrderDetails.csv');
+
+
+SELECT * FROM PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX WHERE ORDER_ID > 15;
+
+
+    
+DROP TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+
+
+
+
+    

@@ -1,0 +1,47 @@
+// Crear tabla
+
+CREATE OR REPLACE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS (
+    ORDER_ID VARCHAR(30),
+    AMOUNT INT,
+    PROFIT INT,
+    QUANTITY INT,
+    CATEGORY VARCHAR(30),
+    SUBCATEGORY VARCHAR(30));
+    
+SELECT * FROM PRIMERABBDD.PRIMERESQUEMA.ORDERS;
+   
+
+// Primer comando COPY
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS
+    FROM @MANAGE_DB.external_stages.aws_stage
+    file_format= (type = csv field_delimiter=',' skip_header=1);
+
+
+
+
+// Listar ficheros del stage
+
+LIST @MANAGE_DB.external_stages.aws_stage;    
+
+
+
+
+// Comando COPY especificando el fichero
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS
+    FROM @MANAGE_DB.external_stages.aws_stage
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files = ('OrderDetails.csv');
+    
+
+
+
+// Comando COPY a partir de un patrón
+
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS
+    FROM @MANAGE_DB.external_stages.aws_stage
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    pattern='.*Order.*';
+    
+

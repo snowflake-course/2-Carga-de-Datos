@@ -1,0 +1,71 @@
+// MÉTODO 1: Especificar el formato del fichero dentro del comando COPY
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+    FROM @MANAGE_DB.external_stages.aws_stage_errorex
+    file_format = (type = csv field_delimiter=',' skip_header=1)
+    files = ('OrderDetails_error.csv')
+    ON_ERROR = 'SKIP_FILE_3'; 
+    
+
+// Vaciamos la tabla
+TRUNCATE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+
+// Crear tabla
+CREATE OR REPLACE TABLE PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX (
+    ORDER_ID VARCHAR(30),
+    AMOUNT INT,
+    PROFIT INT,
+    QUANTITY INT,
+    CATEGORY VARCHAR(30),
+    SUBCATEGORY VARCHAR(30));    
+    
+// Creamos el esquema para organización
+CREATE OR REPLACE SCHEMA MANAGE_DB.file_formats;
+
+// Creamos el objeto de tipo file_format (por defecto es CSV)
+CREATE OR REPLACE file format MANAGE_DB.file_formats.mi_formato;
+
+// Ver propiedades del objeto file format
+DESC file format MANAGE_DB.file_formats.mi_formato;
+
+
+// MÉTODO 2: Usamos el objeto file format creado dentro del comando COPY       
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+    FROM @MANAGE_DB.external_stages.aws_stage_errorex
+    file_format= (FORMAT_NAME=MANAGE_DB.file_formats.mi_formato)
+    files = ('OrderDetails_error.csv')
+    ON_ERROR = 'SKIP_FILE_3'; 
+
+
+// Modificar el objeto file format (el tipo no se puede modificar una vez creado, habría que recrearlo)
+ALTER file format MANAGE_DB.file_formats.mi_formato
+    SET SKIP_HEADER = 1;
+    
+// Si queremos definir objeto de formato con otros tipo de datos (por ejemplo JSON)  
+CREATE OR REPLACE file format MANAGE_DB.file_formats.mi_formato_fichero_2
+    TYPE=JSON,
+    TIME_FORMAT=AUTO;    
+    
+//  Ver propiedades   
+DESC file format MANAGE_DB.file_formats.mi_formato_fichero_2;   
+
+  
+// Usar objeto de formato erróneo     
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+    FROM @MANAGE_DB.external_stages.aws_stage_errorex
+    file_format= (FORMAT_NAME=MANAGE_DB.file_formats.mi_formato_fichero_2)
+    files = ('OrderDetails_error.csv')
+    ON_ERROR = 'SKIP_FILE_3'; 
+
+
+
+// Limpiamos la tabla
+TRUNCATE table PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+
+
+
+// Sobreescribir alguna propiedad del objeto file format      
+COPY INTO PRIMERABBDD.PRIMERESQUEMA.ORDERS_EX
+    FROM  @MANAGE_DB.external_stages.aws_stage_errorex
+    file_format = (FORMAT_NAME= MANAGE_DB.file_formats.mi_formato field_delimiter = ',' skip_header=1 )
+    files = ('OrderDetails_error.csv')
+    ON_ERROR = 'SKIP_FILE_3'; 

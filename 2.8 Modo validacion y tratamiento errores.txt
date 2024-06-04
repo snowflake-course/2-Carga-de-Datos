@@ -1,0 +1,99 @@
+-- MODO VALIDACIÓN --
+// Crear BBDD y tabla
+CREATE OR REPLACE DATABASE COPY_DB;
+
+
+CREATE OR REPLACE TABLE  COPY_DB.PUBLIC.ORDERS (
+    ORDER_ID VARCHAR(30),
+    AMOUNT VARCHAR(30),
+    PROFIT INT,
+    QUANTITY INT,
+    CATEGORY VARCHAR(30),
+    SUBCATEGORY VARCHAR(30));
+
+// Preparar stage
+CREATE OR REPLACE STAGE COPY_DB.PUBLIC.aws_stage_copy
+    url='s3://snowflakebucket-copyoption/size/';
+  
+LIST @COPY_DB.PUBLIC.aws_stage_copy;
+  
+    
+ //Cargar datos con COPY con VALIDATION_MODE = RETURN_ERRORS
+COPY INTO COPY_DB.PUBLIC.ORDERS
+    FROM @aws_stage_copy
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    pattern='.*Order.*'
+    VALIDATION_MODE = RETURN_ERRORS
+    
+ //Cargar datos con COPY con VALIDATION_MODE = VALIDATION_MODE = RETURN_5_ROWS (retornar 5 filas)   
+COPY INTO COPY_DB.PUBLIC.ORDERS
+    FROM @aws_stage_copy
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    pattern='.*Order.*'
+   VALIDATION_MODE = RETURN_5_ROWS 
+
+   ---- Usar ficheros con errores ----
+CREATE OR REPLACE STAGE COPY_DB.PUBLIC.aws_stage_copy
+    url='s3://snowflakebucket-copyoption/returnfailed/';
+
+LIST @COPY_DB.PUBLIC.aws_stage_copy;    
+
+
+
+COPY INTO COPY_DB.PUBLIC.ORDERS
+    FROM @aws_stage_copy
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    pattern='.*Order.*'
+    VALIDATION_MODE = RETURN_ERRORS
+
+
+
+COPY INTO COPY_DB.PUBLIC.ORDERS
+    FROM @aws_stage_copy
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    pattern='.*Order.*'
+    VALIDATION_MODE = RETURN_1_rows
+    
+
+-------------- Trabajando con los resultados de error -----------
+
+---- 1) Guardar los registros erróneos después de VALIDATION_MODE ---- 
+
+CREATE OR REPLACE TABLE  COPY_DB.PUBLIC.ORDERS (
+    ORDER_ID VARCHAR(30),
+    AMOUNT VARCHAR(30),
+    PROFIT INT,
+    QUANTITY INT,
+    CATEGORY VARCHAR(30),
+    SUBCATEGORY VARCHAR(30));
+
+
+COPY INTO COPY_DB.PUBLIC.ORDERS
+    FROM @aws_stage_copy
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    pattern='.*Order.*'
+    VALIDATION_MODE = RETURN_ERRORS;
+
+
+// Almacenar registros erróneos en una tabla
+CREATE OR REPLACE TABLE rechazados AS 
+select rejected_record from table(result_scan(last_query_id()));
+
+SELECT * FROM rechazados;
+
+
+
+---- 2) Transformar registros erróneos ---- 
+
+CREATE OR REPLACE TABLE valores_erroneos as
+SELECT 
+SPLIT_PART(rejected_record,',',1) as ORDER_ID, 
+SPLIT_PART(rejected_record,',',2) as AMOUNT, 
+SPLIT_PART(rejected_record,',',3) as PROFIT, 
+SPLIT_PART(rejected_record,',',4) as QUATNTITY, 
+SPLIT_PART(rejected_record,',',5) as CATEGORY, 
+SPLIT_PART(rejected_record,',',6) as SUBCATEGORY
+FROM rechazados; 
+
+
+SELECT * FROM valores_erroneos;
